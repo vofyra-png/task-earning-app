@@ -23,9 +23,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Write app source files
         run: |
           mkdir -p src/theme src/utils src/context src/components src/navigation src/screens
@@ -506,3 +503,862 @@ jobs:
           const styles = StyleSheet.create({
             btn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
             btnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+            card: { backgroundColor: COLORS.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: COLORS.border },
+            coinBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card2, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+            coinIcon: { fontSize: 16, marginRight: 6 },
+            coinText: { color: COLORS.gold, fontWeight: '800', fontSize: 16 },
+            sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginVertical: 12 },
+            toast: { position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 14, zIndex: 999 },
+            toastText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
+          });
+          ASEOF
+
+          cat > src/navigation/AppNavigator.js << 'ASEOF'
+          import React from 'react';
+          import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+          import { createNativeStackNavigator } from '@react-navigation/native-stack';
+          import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+          import { Text } from 'react-native';
+          import { COLORS } from '../theme/theme';
+          import { useApp } from '../context/AppContext';
+
+          import AuthScreen from '../screens/AuthScreen';
+          import DashboardScreen from '../screens/DashboardScreen';
+          import WalletScreen from '../screens/WalletScreen';
+          import WithdrawScreen from '../screens/WithdrawScreen';
+          import SecurityScreen from '../screens/SecurityScreen';
+          import ProfileScreen from '../screens/ProfileScreen';
+          import SpinScreen from '../screens/SpinScreen';
+          import ScratchScreen from '../screens/ScratchScreen';
+          import AdsScreen from '../screens/AdsScreen';
+          import ReferralScreen from '../screens/ReferralScreen';
+
+          const Stack = createNativeStackNavigator();
+          const Tab = createBottomTabNavigator();
+
+          const navTheme = Object.assign({}, DarkTheme, {
+            colors: Object.assign({}, DarkTheme.colors, {
+              background: COLORS.bg, card: COLORS.card, text: COLORS.text,
+              primary: COLORS.primary, border: COLORS.border,
+            }),
+          });
+
+          function Tabs() {
+            return (
+              <Tab.Navigator
+                screenOptions={({ route }) => ({
+                  headerShown: false,
+                  tabBarStyle: { backgroundColor: COLORS.card, borderTopColor: COLORS.border, height: 62, paddingBottom: 8, paddingTop: 6 },
+                  tabBarActiveTintColor: COLORS.accent,
+                  tabBarInactiveTintColor: COLORS.textDim,
+                  tabBarIcon: ({ color }) => {
+                    const icons = { Home: '🏠', Wallet: '👛', Withdraw: '💸', Security: '🔐', Profile: '👤' };
+                    return <Text style={{ fontSize: 20, color }}>{icons[route.name]}</Text>;
+                  },
+                })}
+              >
+                <Tab.Screen name="Home" component={DashboardScreen} />
+                <Tab.Screen name="Wallet" component={WalletScreen} />
+                <Tab.Screen name="Withdraw" component={WithdrawScreen} />
+                <Tab.Screen name="Security" component={SecurityScreen} />
+                <Tab.Screen name="Profile" component={ProfileScreen} />
+              </Tab.Navigator>
+            );
+          }
+
+          export default function AppNavigator() {
+            const { user, loading } = useApp();
+            if (loading) return null;
+            return (
+              <NavigationContainer theme={navTheme}>
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                  {user ? (
+                    <>
+                      <Stack.Screen name="Main" component={Tabs} />
+                      <Stack.Screen name="Spin" component={SpinScreen} />
+                      <Stack.Screen name="Scratch" component={ScratchScreen} />
+                      <Stack.Screen name="Ads" component={AdsScreen} />
+                      <Stack.Screen name="Referral" component={ReferralScreen} />
+                    </>
+                  ) : (
+                    <Stack.Screen name="Auth" component={AuthScreen} />
+                  )}
+                </Stack.Navigator>
+              </NavigationContainer>
+            );
+          }
+          ASEOF
+
+          cat > src/screens/AuthScreen.js << 'ASEOF'
+          import React, { useState } from 'react';
+          import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+          import { LinearGradient } from 'expo-linear-gradient';
+          import { COLORS } from '../theme/theme';
+          import { GradientButton } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function AuthScreen() {
+            const { signup, login, showToast } = useApp();
+            const [mode, setMode] = useState('login');
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [referral, setReferral] = useState('');
+
+            const submit = async () => {
+              const fn = mode === 'login' ? login : signup;
+              const res = await fn({ username: username.trim(), password, referral: referral.trim() });
+              if (!res.ok) showToast(res.error, 'error');
+              else showToast(mode === 'login' ? 'Welcome back!' : 'Account created!', 'success');
+            };
+
+            return (
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: COLORS.bg }}>
+                <ScrollView contentContainerStyle={styles.container}>
+                  <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.logo}>
+                    <Text style={styles.logoText}>AS</Text>
+                  </LinearGradient>
+                  <Text style={styles.title}>AS Earning App</Text>
+                  <Text style={styles.subtitle}>Complete tasks • Earn coins • Withdraw cash</Text>
+
+                  <View style={styles.tabs}>
+                    {['login', 'signup'].map((m) => (
+                      <TouchableOpacity key={m} onPress={() => setMode(m)} style={[styles.tab, mode === m && styles.tabActive]}>
+                        <Text style={[styles.tabText, mode === m && styles.tabTextActive]}>{m === 'login' ? 'Login' : 'Sign Up'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <TextInput style={styles.input} placeholder="Username" placeholderTextColor={COLORS.textDim} value={username} onChangeText={setUsername} autoCapitalize="none" />
+                  <TextInput style={styles.input} placeholder="Password" placeholderTextColor={COLORS.textDim} value={password} onChangeText={setPassword} secureTextEntry />
+                  {mode === 'signup' && (
+                    <TextInput style={styles.input} placeholder="Referral code (optional)" placeholderTextColor={COLORS.textDim} value={referral} onChangeText={setReferral} autoCapitalize="characters" />
+                  )}
+
+                  <GradientButton title={mode === 'login' ? 'Login' : 'Create Account'} onPress={submit} style={{ marginTop: 8 }} />
+                  <Text style={styles.hint}>100 coins = 1 PKR • Max 90 coins per task</Text>
+                </ScrollView>
+              </KeyboardAvoidingView>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            container: { padding: 24, paddingTop: 80, alignItems: 'stretch' },
+            logo: { width: 84, height: 84, borderRadius: 24, alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
+            logoText: { color: '#fff', fontSize: 34, fontWeight: '900' },
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900', textAlign: 'center', marginTop: 16 },
+            subtitle: { color: COLORS.textDim, textAlign: 'center', marginTop: 6, marginBottom: 24 },
+            tabs: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 14, padding: 4, marginBottom: 16 },
+            tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+            tabActive: { backgroundColor: COLORS.primary },
+            tabText: { color: COLORS.textDim, fontWeight: '700' },
+            tabTextActive: { color: '#fff' },
+            input: { backgroundColor: COLORS.card, color: COLORS.text, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
+            hint: { color: COLORS.textDim, textAlign: 'center', marginTop: 16, fontSize: 12 },
+          });
+          ASEOF
+
+          cat > src/screens/DashboardScreen.js << 'ASEOF'
+          import React from 'react';
+          import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+          import { LinearGradient } from 'expo-linear-gradient';
+          import { COLORS, TASKS, COIN_RULES } from '../theme/theme';
+          import { Card, SectionTitle, CoinBadge } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function DashboardScreen({ navigation }) {
+            const { user, completeTask, showToast } = useApp();
+
+            const quick = [
+              { label: 'Spin Wheel', icon: '🎡', screen: 'Spin' },
+              { label: 'Scratch Card', icon: '🎟️', screen: 'Scratch' },
+              { label: 'Watch Ads', icon: '📺', screen: 'Ads' },
+              { label: 'Refer & Earn', icon: '🤝', screen: 'Referral' },
+            ];
+
+            const onTask = async (task) => {
+              if (user.completedTasks.includes(task.id)) {
+                showToast('Task already completed.', 'error');
+                return;
+              }
+              const earned = await completeTask(task);
+              if (earned > 0) showToast('+' + earned + ' coins earned!', 'success');
+            };
+
+            return (
+              <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ padding: 16, paddingTop: 50 }}>
+                <View style={styles.header}>
+                  <View>
+                    <Text style={styles.hello}>Hello, {user.username} 👋</Text>
+                    <Text style={styles.sub}>Let us earn some coins today</Text>
+                  </View>
+                  <CoinBadge coins={user.coins} />
+                </View>
+
+                <LinearGradient colors={[COLORS.primary, COLORS.primaryDark]} style={styles.balance}>
+                  <Text style={styles.balanceLabel}>Total Balance</Text>
+                  <Text style={styles.balanceValue}>🪙 {user.coins}</Text>
+                  <Text style={styles.balancePkr}>≈ {(user.coins / COIN_RULES.COINS_PER_PKR).toFixed(2)} PKR</Text>
+                </LinearGradient>
+
+                <SectionTitle>Quick Actions</SectionTitle>
+                <View style={styles.quickRow}>
+                  {quick.map((q) => (
+                    <TouchableOpacity key={q.screen} style={styles.quickItem} onPress={() => navigation.navigate(q.screen)}>
+                      <Text style={styles.quickIcon}>{q.icon}</Text>
+                      <Text style={styles.quickLabel}>{q.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <SectionTitle>Available Tasks</SectionTitle>
+                {TASKS.map((t) => {
+                  const done = user.completedTasks.includes(t.id);
+                  return (
+                    <Card key={t.id} style={styles.task}>
+                      <Text style={styles.taskIcon}>{t.icon}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.taskTitle}>{t.title}</Text>
+                        <Text style={styles.taskReward}>+{Math.min(t.reward, COIN_RULES.MAX_COINS_PER_TASK)} coins</Text>
+                      </View>
+                      <TouchableOpacity style={[styles.taskBtn, done && styles.taskBtnDone]} onPress={() => onTask(t)} disabled={done}>
+                        <Text style={styles.taskBtnText}>{done ? 'Done' : 'Start'}</Text>
+                      </TouchableOpacity>
+                    </Card>
+                  );
+                })}
+                <View style={{ height: 30 }} />
+              </ScrollView>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+            hello: { color: COLORS.text, fontSize: 20, fontWeight: '800' },
+            sub: { color: COLORS.textDim, fontSize: 13, marginTop: 2 },
+            balance: { borderRadius: 20, padding: 20, marginBottom: 8 },
+            balanceLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
+            balanceValue: { color: '#fff', fontSize: 34, fontWeight: '900', marginTop: 6 },
+            balancePkr: { color: 'rgba(255,255,255,0.9)', fontSize: 15, marginTop: 4 },
+            quickRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+            quickItem: { width: '48%', backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+            quickIcon: { fontSize: 28, marginBottom: 6 },
+            quickLabel: { color: COLORS.text, fontWeight: '700', fontSize: 13 },
+            task: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+            taskIcon: { fontSize: 26, marginRight: 12 },
+            taskTitle: { color: COLORS.text, fontWeight: '700', fontSize: 15 },
+            taskReward: { color: COLORS.gold, fontSize: 13, marginTop: 2 },
+            taskBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 },
+            taskBtnDone: { backgroundColor: COLORS.card2 },
+            taskBtnText: { color: '#fff', fontWeight: '800' },
+          });
+          ASEOF
+
+          cat > src/screens/SpinScreen.js << 'ASEOF'
+          import React, { useRef, useState } from 'react';
+          import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
+          import Svg, { G, Path, Text as SvgText } from 'react-native-svg';
+          import { COLORS, COIN_RULES } from '../theme/theme';
+          import { GradientButton } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          const SEGMENTS = [5, 10, 20, 30, 50, 90, 15, 25];
+          const SEG_COLORS = ['#6C5CE7', '#00D9A6', '#FFC93C', '#FF5C7A', '#4B3FBF', '#00B894', '#E17055', '#0984E3'];
+          const SIZE = 280;
+          const R = SIZE / 2;
+          const SEG_ANGLE = 360 / SEGMENTS.length;
+
+          function polar(cx, cy, r, angleDeg) {
+            const a = ((angleDeg - 90) * Math.PI) / 180;
+            return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+          }
+
+          function segmentPath(cx, cy, r, startAngle, endAngle) {
+            const start = polar(cx, cy, r, endAngle);
+            const end = polar(cx, cy, r, startAngle);
+            const largeArc = endAngle - startAngle <= 180 ? 0 : 1;
+            return 'M ' + cx + ' ' + cy + ' L ' + start.x + ' ' + start.y + ' A ' + r + ' ' + r + ' 0 ' + largeArc + ' 0 ' + end.x + ' ' + end.y + ' Z';
+          }
+
+          export default function SpinScreen({ navigation }) {
+            const { spinWheel, showToast } = useApp();
+            const rotation = useRef(new Animated.Value(0)).current;
+            const [spinning, setSpinning] = useState(false);
+            const [result, setResult] = useState(null);
+
+            const spin = () => {
+              if (spinning) return;
+              setSpinning(true);
+              setResult(null);
+              const idx = Math.floor(Math.random() * SEGMENTS.length);
+              const value = SEGMENTS[idx];
+              const target = 360 * 5 + (360 - idx * SEG_ANGLE - SEG_ANGLE / 2);
+              rotation.setValue(0);
+              Animated.timing(rotation, {
+                toValue: target,
+                duration: 3500,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }).start(async () => {
+                const earned = await spinWheel(value);
+                if (earned > 0) {
+                  setResult(earned);
+                  showToast('You won ' + earned + ' coins!', 'success');
+                }
+                setSpinning(false);
+              });
+            };
+
+            const rotate = rotation.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] });
+
+            return (
+              <View style={styles.container}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+                  <Text style={styles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.title}>🎡 Spin & Win</Text>
+                <Text style={styles.sub}>Max {COIN_RULES.SPIN_MAX} coins per spin</Text>
+
+                <View style={styles.wheelWrap}>
+                  <Animated.View style={{ transform: [{ rotate }] }}>
+                    <Svg width={SIZE} height={SIZE}>
+                      <G>
+                        {SEGMENTS.map((val, i) => {
+                          const start = i * SEG_ANGLE;
+                          const end = start + SEG_ANGLE;
+                          const mid = start + SEG_ANGLE / 2;
+                          const labelPos = polar(R, R, R * 0.62, mid);
+                          return (
+                            <G key={i}>
+                              <Path d={segmentPath(R, R, R - 4, start, end)} fill={SEG_COLORS[i]} stroke="#0B1020" strokeWidth="2" />
+                              <SvgText x={labelPos.x} y={labelPos.y} fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">{val}</SvgText>
+                            </G>
+                          );
+                        })}
+                      </G>
+                    </Svg>
+                  </Animated.View>
+                  <View style={styles.pointer} />
+                </View>
+
+                {result !== null && <Text style={styles.result}>🎉 You won {result} coins!</Text>}
+
+                <GradientButton title={spinning ? 'Spinning...' : 'SPIN NOW'} onPress={spin} disabled={spinning} style={{ width: '80%', marginTop: 24 }} />
+              </View>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            container: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', paddingTop: 50 },
+            back: { alignSelf: 'flex-start', marginLeft: 20, marginBottom: 10 },
+            backText: { color: COLORS.textDim, fontSize: 16 },
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
+            sub: { color: COLORS.textDim, marginTop: 4, marginBottom: 20 },
+            wheelWrap: { alignItems: 'center', justifyContent: 'center' },
+            pointer: { position: 'absolute', top: -6, width: 0, height: 0, borderLeftWidth: 14, borderRightWidth: 14, borderTopWidth: 26, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: COLORS.gold },
+            result: { color: COLORS.accent, fontSize: 20, fontWeight: '800', marginTop: 20 },
+          });
+          ASEOF
+
+          cat > src/screens/ScratchScreen.js << 'ASEOF'
+          import React, { useState } from 'react';
+          import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+          import { COLORS, COIN_RULES } from '../theme/theme';
+          import { GradientButton } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          const GRID = 6;
+
+          export default function ScratchScreen({ navigation }) {
+            const { scratchCard, showToast } = useApp();
+            const [revealed, setRevealed] = useState({});
+            const [prize, setPrize] = useState(null);
+            const [done, setDone] = useState(false);
+
+            const start = () => {
+              const value = Math.floor(Math.random() * (COIN_RULES.SCRATCH_MAX - COIN_RULES.SCRATCH_MIN + 1)) + COIN_RULES.SCRATCH_MIN;
+              setPrize(value);
+              setRevealed({});
+              setDone(false);
+            };
+
+            const reveal = async (i) => {
+              if (done || prize === null) return;
+              const next = Object.assign({}, revealed, { [i]: true });
+              setRevealed(next);
+              if (Object.keys(next).length >= 8) {
+                setDone(true);
+                const earned = await scratchCard(prize);
+                if (earned > 0) showToast('You won ' + earned + ' coins!', 'success');
+              }
+            };
+
+            return (
+              <View style={styles.container}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+                  <Text style={styles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.title}>🎟️ Scratch Card</Text>
+                <Text style={styles.sub}>Reveal 8 tiles to win up to {COIN_RULES.SCRATCH_MAX} coins</Text>
+
+                <View style={styles.grid}>
+                  {Array.from({ length: GRID * GRID }).map((_, i) => (
+                    <TouchableOpacity key={i} style={[styles.cell, revealed[i] && styles.cellRevealed]} onPress={() => reveal(i)}>
+                      <Text style={styles.cellText}>{revealed[i] ? (prize !== null ? '🪙' : '') : '?'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {done && prize !== null && <Text style={styles.result}>🎉 You won {prize} coins!</Text>}
+
+                <GradientButton title={prize === null ? 'START SCRATCHING' : 'NEW CARD'} onPress={start} style={{ width: '80%', marginTop: 24 }} />
+              </View>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            container: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', paddingTop: 50 },
+            back: { alignSelf: 'flex-start', marginLeft: 20, marginBottom: 10 },
+            backText: { color: COLORS.textDim, fontSize: 16 },
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
+            sub: { color: COLORS.textDim, marginTop: 4, marginBottom: 20, textAlign: 'center', paddingHorizontal: 20 },
+            grid: { flexDirection: 'row', flexWrap: 'wrap', width: 300, justifyContent: 'center' },
+            cell: { width: 46, height: 46, margin: 2, borderRadius: 10, backgroundColor: COLORS.card2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border },
+            cellRevealed: { backgroundColor: COLORS.primary },
+            cellText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+            result: { color: COLORS.accent, fontSize: 20, fontWeight: '800', marginTop: 20 },
+          });
+          ASEOF
+
+          cat > src/screens/AdsScreen.js << 'ASEOF'
+          import React, { useState, useEffect } from 'react';
+          import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+          import { COLORS, COIN_RULES } from '../theme/theme';
+          import { GradientButton, Card } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function AdsScreen({ navigation }) {
+            const { user, watchAd, showToast } = useApp();
+            const [modal, setModal] = useState(false);
+            const [countdown, setCountdown] = useState(5);
+
+            const today = new Date().toDateString();
+            const watched = user.lastAdDate === today ? user.adsWatchedToday : 0;
+            const remaining = COIN_RULES.DAILY_AD_LIMIT - watched;
+
+            useEffect(() => {
+              let timer;
+              if (modal && countdown > 0) {
+                timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+              } else if (modal && countdown === 0) {
+                finish();
+              }
+              return () => clearTimeout(timer);
+            }, [modal, countdown]);
+
+            const openAd = () => {
+              if (remaining <= 0) {
+                showToast('Daily ad limit reached (40).', 'error');
+                return;
+              }
+              setCountdown(5);
+              setModal(true);
+            };
+
+            const finish = async () => {
+              setModal(false);
+              const earned = await watchAd();
+              if (earned > 0) showToast('+' + earned + ' coins for watching!', 'success');
+            };
+
+            return (
+              <View style={styles.container}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+                  <Text style={styles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.title}>📺 Watch Ads & Earn</Text>
+                <Text style={styles.sub}>+{COIN_RULES.AD_REWARD} coins per ad • {COIN_RULES.DAILY_AD_LIMIT} ads/day</Text>
+
+                <Card style={styles.statCard}>
+                  <Text style={styles.statLabel}>Ads watched today</Text>
+                  <Text style={styles.statValue}>{watched} / {COIN_RULES.DAILY_AD_LIMIT}</Text>
+                  <Text style={styles.statRemaining}>{remaining} remaining</Text>
+                </Card>
+
+                <GradientButton title={remaining > 0 ? 'WATCH AD (+' + COIN_RULES.AD_REWARD + ')' : 'LIMIT REACHED'} onPress={openAd} disabled={remaining <= 0} style={{ width: '80%', marginTop: 20 }} />
+
+                <Modal visible={modal} transparent animationType="fade">
+                  <View style={styles.modalBg}>
+                    <View style={styles.modalBox}>
+                      <Text style={styles.modalTitle}>Ad Playing...</Text>
+                      <Text style={styles.modalCount}>{countdown}</Text>
+                      <Text style={styles.modalHint}>Please wait for the ad to finish</Text>
+                    </View>
+                  </View>
+                </Modal>
+              </View>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            container: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', paddingTop: 50 },
+            back: { alignSelf: 'flex-start', marginLeft: 20, marginBottom: 10 },
+            backText: { color: COLORS.textDim, fontSize: 16 },
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
+            sub: { color: COLORS.textDim, marginTop: 4, marginBottom: 20, textAlign: 'center', paddingHorizontal: 20 },
+            statCard: { width: '80%', alignItems: 'center' },
+            statLabel: { color: COLORS.textDim, fontSize: 14 },
+            statValue: { color: COLORS.text, fontSize: 30, fontWeight: '900', marginTop: 6 },
+            statRemaining: { color: COLORS.accent, marginTop: 4 },
+            modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
+            modalBox: { backgroundColor: COLORS.card, padding: 30, borderRadius: 20, alignItems: 'center', width: '80%' },
+            modalTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800' },
+            modalCount: { color: COLORS.gold, fontSize: 54, fontWeight: '900', marginVertical: 10 },
+            modalHint: { color: COLORS.textDim, fontSize: 13 },
+          });
+          ASEOF
+
+          cat > src/screens/ReferralScreen.js << 'ASEOF'
+          import React from 'react';
+          import { View, Text, StyleSheet, Share, TouchableOpacity } from 'react-native';
+          import { COLORS, COIN_RULES } from '../theme/theme';
+          import { Card, GradientButton } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function ReferralScreen({ navigation }) {
+            const { user } = useApp();
+
+            const share = async () => {
+              try {
+                await Share.share({
+                  message: 'Join AS Earning App and earn real cash! Use my referral code: ' + user.referralCode,
+                });
+              } catch (e) {}
+            };
+
+            return (
+              <View style={styles.container}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+                  <Text style={styles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.title}>🤝 Refer & Earn</Text>
+                <Text style={styles.sub}>Earn {COIN_RULES.REFERRAL_BONUS} coins per friend</Text>
+
+                <Card style={styles.codeCard}>
+                  <Text style={styles.codeLabel}>Your Referral Code</Text>
+                  <Text style={styles.code}>{user.referralCode}</Text>
+                </Card>
+
+                <Card style={styles.infoCard}>
+                  <Text style={styles.infoTitle}>How it works</Text>
+                  <Text style={styles.infoText}>1. Share your code with friends</Text>
+                  <Text style={styles.infoText}>2. They sign up using your code</Text>
+                  <Text style={styles.infoText}>3. You get {COIN_RULES.REFERRAL_BONUS} coins, they get {COIN_RULES.REFERRAL_CODE_BONUS} coins</Text>
+                </Card>
+
+                <GradientButton title="SHARE CODE" onPress={share} style={{ width: '80%', marginTop: 20 }} />
+              </View>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            container: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', paddingTop: 50 },
+            back: { alignSelf: 'flex-start', marginLeft: 20, marginBottom: 10 },
+            backText: { color: COLORS.textDim, fontSize: 16 },
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
+            sub: { color: COLORS.textDim, marginTop: 4, marginBottom: 20 },
+            codeCard: { width: '80%', alignItems: 'center', marginBottom: 16 },
+            codeLabel: { color: COLORS.textDim, fontSize: 14 },
+            code: { color: COLORS.gold, fontSize: 32, fontWeight: '900', marginTop: 8, letterSpacing: 2 },
+            infoCard: { width: '80%' },
+            infoTitle: { color: COLORS.text, fontWeight: '800', marginBottom: 8 },
+            infoText: { color: COLORS.textDim, marginTop: 4 },
+          });
+          ASEOF
+
+          cat > src/screens/SecurityScreen.js << 'ASEOF'
+          import React, { useState } from 'react';
+          import { View, Text, StyleSheet, TextInput, ScrollView } from 'react-native';
+          import { COLORS } from '../theme/theme';
+          import { Card, GradientButton } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function SecurityScreen() {
+            const { user, verifySecurityCode, regenerateSecurityCode, showToast } = useApp();
+            const [input, setInput] = useState('');
+
+            const verify = async () => {
+              const ok = await verifySecurityCode(input.trim());
+              if (ok) showToast('Security verified!', 'success');
+              else showToast('Invalid security code.', 'error');
+              setInput('');
+            };
+
+            const regen = async () => {
+              await regenerateSecurityCode();
+              showToast('New security code generated.', 'success');
+            };
+
+            return (
+              <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ padding: 16, paddingTop: 50 }}>
+                <Text style={styles.title}>🔐 Security</Text>
+                <Text style={styles.sub}>Protect your account & withdrawals</Text>
+
+                <Card style={styles.codeCard}>
+                  <Text style={styles.codeLabel}>Your Security Code</Text>
+                  <Text style={styles.code}>{user.securityCode}</Text>
+                  <Text style={styles.status}>{user.securityVerified ? '✅ Verified' : '⚠️ Not verified'}</Text>
+                </Card>
+
+                <Card style={styles.verifyCard}>
+                  <Text style={styles.verifyTitle}>Verify Code</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter security code"
+                    placeholderTextColor={COLORS.textDim}
+                    value={input}
+                    onChangeText={setInput}
+                    autoCapitalize="characters"
+                  />
+                  <GradientButton title="VERIFY" onPress={verify} />
+                </Card>
+
+                <GradientButton title="REGENERATE CODE" onPress={regen} colors={[COLORS.danger, '#B23A52']} style={{ marginTop: 16 }} />
+
+                <Card style={styles.tips}>
+                  <Text style={styles.tipsTitle}>Anti-Cheat Protection Active</Text>
+                  <Text style={styles.tip}>• Auto-clicker detection</Text>
+                  <Text style={styles.tip}>• Multi-account blocking (max 3/device)</Text>
+                  <Text style={styles.tip}>• Rate limiting on all rewards</Text>
+                  <Text style={styles.tip}>• VPN/proxy heuristics</Text>
+                </Card>
+              </ScrollView>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
+            sub: { color: COLORS.textDim, marginTop: 4, marginBottom: 20 },
+            codeCard: { alignItems: 'center', marginBottom: 16 },
+            codeLabel: { color: COLORS.textDim, fontSize: 14 },
+            code: { color: COLORS.gold, fontSize: 30, fontWeight: '900', marginTop: 8, letterSpacing: 3 },
+            status: { marginTop: 10, color: COLORS.text },
+            verifyCard: { marginBottom: 8 },
+            verifyTitle: { color: COLORS.text, fontWeight: '800', marginBottom: 10 },
+            input: { backgroundColor: COLORS.card2, color: COLORS.text, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
+            tips: { marginTop: 16 },
+            tipsTitle: { color: COLORS.accent, fontWeight: '800', marginBottom: 8 },
+            tip: { color: COLORS.textDim, marginTop: 4 },
+          });
+          ASEOF
+
+          cat > src/screens/WithdrawScreen.js << 'ASEOF'
+          import React, { useState } from 'react';
+          import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
+          import { COLORS, WITHDRAW_METHODS, COIN_RULES } from '../theme/theme';
+          import { Card, GradientButton } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function WithdrawScreen() {
+            const { user, requestWithdraw, showToast } = useApp();
+            const [method, setMethod] = useState(WITHDRAW_METHODS[0].id);
+            const [amount, setAmount] = useState('');
+            const [account, setAccount] = useState('');
+
+            const submit = async () => {
+              const amt = parseFloat(amount);
+              if (!amt || amt <= 0) {
+                showToast('Enter a valid amount.', 'error');
+                return;
+              }
+              if (!account.trim()) {
+                showToast('Enter your account number.', 'error');
+                return;
+              }
+              const ok = await requestWithdraw(method, amt, account.trim());
+              if (ok) {
+                showToast('Withdrawal request submitted!', 'success');
+                setAmount('');
+                setAccount('');
+              }
+            };
+
+            return (
+              <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ padding: 16, paddingTop: 50 }}>
+                <Text style={styles.title}>💸 Withdraw</Text>
+                <Text style={styles.sub}>Balance: 🪙 {user.coins} ({(user.coins / COIN_RULES.COINS_PER_PKR).toFixed(2)} PKR)</Text>
+
+                <Text style={styles.label}>Select Method</Text>
+                {WITHDRAW_METHODS.map((m) => (
+                  <TouchableOpacity key={m.id} style={[styles.method, method === m.id && styles.methodActive]} onPress={() => setMethod(m.id)}>
+                    <Text style={styles.methodIcon}>{m.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.methodName}>{m.name}</Text>
+                      <Text style={styles.methodMin}>Min {m.min} PKR</Text>
+                    </View>
+                    {method === m.id && <Text style={styles.check}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+
+                <Text style={styles.label}>Amount (PKR)</Text>
+                <TextInput style={styles.input} placeholder="e.g. 100" placeholderTextColor={COLORS.textDim} value={amount} onChangeText={setAmount} keyboardType="numeric" />
+
+                <Text style={styles.label}>Account Number / Wallet</Text>
+                <TextInput style={styles.input} placeholder="03xxxxxxxxx" placeholderTextColor={COLORS.textDim} value={account} onChangeText={setAccount} />
+
+                <GradientButton title="REQUEST WITHDRAWAL" onPress={submit} style={{ marginTop: 8 }} />
+                <Text style={styles.note}>Requires verified security code • Min {COIN_RULES.MIN_WITHDRAW_PKR} PKR</Text>
+              </ScrollView>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
+            sub: { color: COLORS.textDim, marginTop: 4, marginBottom: 20 },
+            label: { color: COLORS.text, fontWeight: '700', marginTop: 16, marginBottom: 8 },
+            method: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
+            methodActive: { borderColor: COLORS.accent },
+            methodIcon: { fontSize: 24, marginRight: 12 },
+            methodName: { color: COLORS.text, fontWeight: '700' },
+            methodMin: { color: COLORS.textDim, fontSize: 12, marginTop: 2 },
+            check: { color: COLORS.accent, fontSize: 20, fontWeight: '900' },
+            input: { backgroundColor: COLORS.card, color: COLORS.text, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.border },
+            note: { color: COLORS.textDim, textAlign: 'center', marginTop: 14, fontSize: 12 },
+          });
+          ASEOF
+
+          cat > src/screens/WalletScreen.js << 'ASEOF'
+          import React from 'react';
+          import { View, Text, StyleSheet, ScrollView } from 'react-native';
+          import { COLORS, COIN_RULES } from '../theme/theme';
+          import { Card, SectionTitle } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function WalletScreen() {
+            const { user } = useApp();
+            const pkr = (user.coins / COIN_RULES.COINS_PER_PKR).toFixed(2);
+
+            return (
+              <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ padding: 16, paddingTop: 50 }}>
+                <Text style={styles.title}>👛 Wallet</Text>
+
+                <Card style={styles.balanceCard}>
+                  <Text style={styles.balanceLabel}>Coin Balance</Text>
+                  <Text style={styles.balanceValue}>🪙 {user.coins}</Text>
+                  <Text style={styles.balancePkr}>≈ {pkr} PKR</Text>
+                </Card>
+
+                <SectionTitle>Conversion Rate</SectionTitle>
+                <Card>
+                  <Text style={styles.rate}>{COIN_RULES.COINS_PER_PKR} coins = 1 PKR</Text>
+                  <Text style={styles.rateSub}>Minimum withdrawal: {COIN_RULES.MIN_WITHDRAW_PKR} PKR</Text>
+                </Card>
+
+                <SectionTitle>Coin Limits</SectionTitle>
+                <Card>
+                  <Text style={styles.limit}>Max per task: {COIN_RULES.MAX_COINS_PER_TASK} coins</Text>
+                  <Text style={styles.limit}>Spin reward: {COIN_RULES.SPIN_MIN}–{COIN_RULES.SPIN_MAX} coins</Text>
+                  <Text style={styles.limit}>Scratch reward: {COIN_RULES.SCRATCH_MIN}–{COIN_RULES.SCRATCH_MAX} coins</Text>
+                  <Text style={styles.limit}>Ad reward: {COIN_RULES.AD_REWARD} coins</Text>
+                  <Text style={styles.limit}>Daily ad limit: {COIN_RULES.DAILY_AD_LIMIT} ads</Text>
+                </Card>
+
+                <SectionTitle>Recent Activity</SectionTitle>
+                {(user.history || []).length === 0 ? (
+                  <Card><Text style={styles.empty}>No activity yet. Start earning!</Text></Card>
+                ) : (
+                  (user.history || []).map((h, i) => (
+                    <Card key={i} style={styles.historyRow}>
+                      <Text style={styles.historyLabel}>{h.label}</Text>
+                      <Text style={[styles.historyAmount, { color: h.amount >= 0 ? COLORS.accent : COLORS.danger }]}>
+                        {h.amount >= 0 ? '+' : ''}{h.amount}
+                      </Text>
+                    </Card>
+                  ))
+                )}
+                <View style={{ height: 30 }} />
+              </ScrollView>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900', marginBottom: 16 },
+            balanceCard: { alignItems: 'center' },
+            balanceLabel: { color: COLORS.textDim, fontSize: 14 },
+            balanceValue: { color: COLORS.gold, fontSize: 36, fontWeight: '900', marginTop: 6 },
+            balancePkr: { color: COLORS.text, fontSize: 16, marginTop: 4 },
+            rate: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+            rateSub: { color: COLORS.textDim, marginTop: 6 },
+            limit: { color: COLORS.textDim, marginTop: 6 },
+            empty: { color: COLORS.textDim, textAlign: 'center' },
+            historyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingVertical: 12 },
+            historyLabel: { color: COLORS.text, flex: 1 },
+            historyAmount: { fontWeight: '800', fontSize: 16 },
+          });
+          ASEOF
+
+          cat > src/screens/ProfileScreen.js << 'ASEOF'
+          import React from 'react';
+          import { View, Text, StyleSheet, ScrollView } from 'react-native';
+          import { COLORS } from '../theme/theme';
+          import { Card, GradientButton } from '../components/UI';
+          import { useApp } from '../context/AppContext';
+
+          export default function ProfileScreen() {
+            const { user, logout } = useApp();
+
+            return (
+              <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ padding: 16, paddingTop: 50 }}>
+                <Text style={styles.title}>👤 Profile</Text>
+
+                <Card style={styles.profileCard}>
+                  <View style={styles.avatar}><Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text></View>
+                  <Text style={styles.username}>{user.username}</Text>
+                  <Text style={styles.coins}>🪙 {user.coins} coins</Text>
+                </Card>
+
+                <Card style={styles.infoCard}>
+                  <View style={styles.row}><Text style={styles.rowLabel}>Referral Code</Text><Text style={styles.rowValue}>{user.referralCode}</Text></View>
+                  <View style={styles.row}><Text style={styles.rowLabel}>Security</Text><Text style={styles.rowValue}>{user.securityVerified ? 'Verified ✅' : 'Not verified'}</Text></View>
+                  <View style={styles.row}><Text style={styles.rowLabel}>Tasks Done</Text><Text style={styles.rowValue}>{user.completedTasks.length}</Text></View>
+                  <View style={styles.row}><Text style={styles.rowLabel}>Member Since</Text><Text style={styles.rowValue}>{new Date(user.createdAt).toLocaleDateString()}</Text></View>
+                </Card>
+
+                <GradientButton title="LOGOUT" onPress={logout} colors={[COLORS.danger, '#B23A52']} style={{ marginTop: 20 }} />
+              </ScrollView>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            title: { color: COLORS.text, fontSize: 26, fontWeight: '900', marginBottom: 16 },
+            profileCard: { alignItems: 'center', marginBottom: 16 },
+            avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+            avatarText: { color: '#fff', fontSize: 34, fontWeight: '900' },
+            username: { color: COLORS.text, fontSize: 20, fontWeight: '800', marginTop: 12 },
+            coins: { color: COLORS.gold, fontSize: 16, marginTop: 4 },
+            infoCard: {},
+            row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+            rowLabel: { color: COLORS.textDim },
+            rowValue: { color: COLORS.text, fontWeight: '700' },
+          });
+          ASEOF
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Expo prebuild (generate Android project)
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Set Android SDK path
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+
+      - name: Build Release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: as-earning-app-apk
+          path: android/app/build/outputs/apk/release/*.apk
