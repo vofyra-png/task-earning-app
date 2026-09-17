@@ -1,0 +1,508 @@
+name: Build AS Earning APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Write app source files
+        run: |
+          mkdir -p src/theme src/utils src/context src/components src/navigation src/screens
+
+          cat > package.json << 'ASEOF'
+          {
+            "name": "as-earning-app",
+            "version": "1.0.0",
+            "main": "node_modules/expo/AppEntry.js",
+            "scripts": {
+              "start": "expo start",
+              "android": "expo start --android"
+            },
+            "dependencies": {
+              "expo": "~51.0.28",
+              "expo-status-bar": "~1.12.1",
+              "react": "18.2.0",
+              "react-native": "0.74.5",
+              "@react-navigation/native": "^6.1.18",
+              "@react-navigation/native-stack": "^6.11.0",
+              "@react-navigation/bottom-tabs": "^6.6.1",
+              "react-native-screens": "3.31.1",
+              "react-native-safe-area-context": "4.10.5",
+              "@react-native-async-storage/async-storage": "1.23.1",
+              "react-native-svg": "15.2.0",
+              "expo-linear-gradient": "~13.0.2"
+            },
+            "devDependencies": {
+              "@babel/core": "^7.24.0"
+            },
+            "private": true
+          }
+          ASEOF
+
+          cat > app.json << 'ASEOF'
+          {
+            "expo": {
+              "name": "AS Earning App",
+              "slug": "as-earning-app",
+              "version": "1.0.0",
+              "orientation": "portrait",
+              "userInterfaceStyle": "dark",
+              "assetBundlePatterns": ["**/*"],
+              "android": {
+                "package": "com.asearning.app",
+                "versionCode": 1,
+                "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+              }
+            }
+          }
+          ASEOF
+
+          cat > babel.config.js << 'ASEOF'
+          module.exports = function (api) {
+            api.cache(true);
+            return { presets: ['babel-preset-expo'] };
+          };
+          ASEOF
+
+          cat > App.js << 'ASEOF'
+          import React from 'react';
+          import { SafeAreaProvider } from 'react-native-safe-area-context';
+          import { StatusBar } from 'expo-status-bar';
+          import { AppProvider } from './src/context/AppContext';
+          import AppNavigator from './src/navigation/AppNavigator';
+          import { ToastHost } from './src/components/UI';
+
+          export default function App() {
+            return (
+              <SafeAreaProvider>
+                <AppProvider>
+                  <StatusBar style="light" />
+                  <AppNavigator />
+                  <ToastHost />
+                </AppProvider>
+              </SafeAreaProvider>
+            );
+          }
+          ASEOF
+
+          cat > src/theme/theme.js << 'ASEOF'
+          export const COLORS = {
+            bg: '#0B1020',
+            card: '#151B33',
+            card2: '#1E2745',
+            primary: '#6C5CE7',
+            primaryDark: '#4B3FBF',
+            accent: '#00D9A6',
+            gold: '#FFC93C',
+            danger: '#FF5C7A',
+            text: '#FFFFFF',
+            textDim: '#9AA3C7',
+            border: '#2A3358',
+          };
+
+          export const COIN_RULES = {
+            MAX_COINS_PER_TASK: 90,
+            TASK_REWARD: 25,
+            SPIN_MIN: 5,
+            SPIN_MAX: 90,
+            SCRATCH_MIN: 10,
+            SCRATCH_MAX: 90,
+            AD_REWARD: 15,
+            DAILY_AD_LIMIT: 40,
+            REFERRAL_BONUS: 90,
+            REFERRAL_CODE_BONUS: 50,
+            COINS_PER_PKR: 100,
+            MIN_WITHDRAW_PKR: 50,
+          };
+
+          export const WITHDRAW_METHODS = [
+            { id: 'easypaisa', name: 'EasyPaisa', icon: '💚', min: 50 },
+            { id: 'jazzcash', name: 'JazzCash', icon: '❤️', min: 50 },
+            { id: 'binance', name: 'Binance (USDT)', icon: '🟡', min: 100 },
+          ];
+
+          export const TASKS = [
+            { id: 't1', title: 'Watch a short video', reward: 25, icon: '🎬' },
+            { id: 't2', title: 'Visit a website', reward: 20, icon: '🌐' },
+            { id: 't3', title: 'Install & open app', reward: 40, icon: '📱' },
+            { id: 't4', title: 'Complete a survey', reward: 60, icon: '📝' },
+            { id: 't5', title: 'Share on social media', reward: 30, icon: '📢' },
+            { id: 't6', title: 'Sign up on partner site', reward: 90, icon: '🔗' },
+          ];
+          ASEOF
+
+          cat > src/utils/security.js << 'ASEOF'
+          import AsyncStorage from '@react-native-async-storage/async-storage';
+          import { COIN_RULES } from '../theme/theme';
+
+          export function simpleHash(str) {
+            let h = 0;
+            for (let i = 0; i < str.length; i++) {
+              h = (h << 5) - h + str.charCodeAt(i);
+              h |= 0;
+            }
+            return Math.abs(h).toString(36);
+          }
+
+          export function generateSecurityCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 8; i++) {
+              code += chars[Math.floor(Math.random() * chars.length)];
+            }
+            return code;
+          }
+
+          export function makeReferralCode(username) {
+            const base = (username || 'USER').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
+            const num = Math.floor(1000 + Math.random() * 9000);
+            return (base || 'AS') + num;
+          }
+
+          const rateBuckets = {};
+          export function checkRateLimit(key, max, windowMs) {
+            const now = Date.now();
+            if (!rateBuckets[key]) rateBuckets[key] = [];
+            rateBuckets[key] = rateBuckets[key].filter((t) => now - t < windowMs);
+            if (rateBuckets[key].length >= max) return false;
+            rateBuckets[key].push(now);
+            return true;
+          }
+
+          let tapTimes = [];
+          export function registerTap() {
+            const now = Date.now();
+            tapTimes.push(now);
+            tapTimes = tapTimes.filter((t) => now - t < 1000);
+            return tapTimes.length <= 12;
+          }
+
+          export async function getDeviceId() {
+            let id = await AsyncStorage.getItem('@as_device_id');
+            if (!id) {
+              id = 'DEV-' + Math.random().toString(36).slice(2, 10).toUpperCase();
+              await AsyncStorage.setItem('@as_device_id', id);
+            }
+            return id;
+          }
+
+          export async function registerAccountOnDevice(username) {
+            const raw = await AsyncStorage.getItem('@as_device_accounts');
+            const accounts = raw ? JSON.parse(raw) : [];
+            if (!accounts.includes(username)) accounts.push(username);
+            await AsyncStorage.setItem('@as_device_accounts', JSON.stringify(accounts));
+            return accounts.length <= 3;
+          }
+
+          export function checkVpnHeuristic() {
+            return false;
+          }
+
+          export function validateWithdraw(amountPkr, balanceCoins, securityVerified) {
+            if (!securityVerified) return 'Please verify your security code first.';
+            if (amountPkr < COIN_RULES.MIN_WITHDRAW_PKR) return 'Minimum withdrawal is ' + COIN_RULES.MIN_WITHDRAW_PKR + ' PKR.';
+            if (amountPkr * COIN_RULES.COINS_PER_PKR > balanceCoins) return 'Not enough coins.';
+            return null;
+          }
+          ASEOF
+
+          cat > src/context/AppContext.js << 'ASEOF'
+          import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+          import AsyncStorage from '@react-native-async-storage/async-storage';
+          import { COIN_RULES } from '../theme/theme';
+          import {
+            simpleHash, generateSecurityCode, makeReferralCode,
+            registerAccountOnDevice, checkRateLimit,
+          } from '../utils/security';
+
+          const AppContext = createContext(null);
+          export const useApp = () => useContext(AppContext);
+
+          const USERS_KEY = '@as_users';
+          const SESSION_KEY = '@as_session';
+
+          export function AppProvider({ children }) {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [toast, setToast] = useState(null);
+
+            const showToast = useCallback((message, type) => {
+              setToast({ message, type: type || 'info', id: Date.now() });
+            }, []);
+
+            useEffect(() => {
+              (async () => {
+                try {
+                  const raw = await AsyncStorage.getItem(SESSION_KEY);
+                  if (raw) setUser(JSON.parse(raw));
+                } catch (e) {}
+                setLoading(false);
+              })();
+            }, []);
+
+            const persistUsers = async (users) => {
+              await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+            };
+            const loadUsers = async () => {
+              const raw = await AsyncStorage.getItem(USERS_KEY);
+              return raw ? JSON.parse(raw) : {};
+            };
+
+            const signup = async ({ username, password, referral }) => {
+              if (!username || !password) return { ok: false, error: 'Enter username and password.' };
+              if (password.length < 4) return { ok: false, error: 'Password must be at least 4 characters.' };
+              const users = await loadUsers();
+              if (users[username]) return { ok: false, error: 'Username already exists.' };
+
+              const allowed = await registerAccountOnDevice(username);
+              if (!allowed) return { ok: false, error: 'Too many accounts on this device.' };
+
+              let bonus = 0;
+              if (referral) {
+                const refOwner = Object.values(users).find((u) => u.referralCode === referral.toUpperCase());
+                if (refOwner) {
+                  refOwner.coins += COIN_RULES.REFERRAL_BONUS;
+                  bonus = COIN_RULES.REFERRAL_CODE_BONUS;
+                }
+              }
+
+              const newUser = {
+                username,
+                passwordHash: simpleHash(password),
+                coins: bonus,
+                securityCode: generateSecurityCode(),
+                securityVerified: false,
+                referralCode: makeReferralCode(username),
+                referrals: [],
+                adsWatchedToday: 0,
+                lastAdDate: new Date().toDateString(),
+                completedTasks: [],
+                lastSpin: 0,
+                lastScratch: 0,
+                history: [],
+                createdAt: Date.now(),
+              };
+              users[username] = newUser;
+              await persistUsers(users);
+              await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
+              setUser(newUser);
+              return { ok: true };
+            };
+
+            const login = async ({ username, password }) => {
+              const users = await loadUsers();
+              const u = users[username];
+              if (!u) return { ok: false, error: 'User not found.' };
+              if (u.passwordHash !== simpleHash(password)) return { ok: false, error: 'Wrong password.' };
+              await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(u));
+              setUser(u);
+              return { ok: true };
+            };
+
+            const logout = async () => {
+              await AsyncStorage.removeItem(SESSION_KEY);
+              setUser(null);
+            };
+
+            const updateUser = async (patch) => {
+              const users = await loadUsers();
+              const updated = Object.assign({}, user, patch);
+              users[updated.username] = updated;
+              await persistUsers(users);
+              await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+              setUser(updated);
+              return updated;
+            };
+
+            const addCoins = async (amount, label) => {
+              const capped = Math.min(amount, COIN_RULES.MAX_COINS_PER_TASK);
+              const history = [{ label, amount: capped, at: Date.now() }].concat(user.history || []).slice(0, 50);
+              await updateUser({ coins: user.coins + capped, history });
+              return capped;
+            };
+
+            const completeTask = async (task) => {
+              if (!checkRateLimit('task', 10, 60000)) {
+                showToast('Slow down! Too many actions.', 'error');
+                return 0;
+              }
+              const capped = Math.min(task.reward, COIN_RULES.MAX_COINS_PER_TASK);
+              const history = [{ label: task.title, amount: capped, at: Date.now() }].concat(user.history || []).slice(0, 50);
+              await updateUser({
+                coins: user.coins + capped,
+                completedTasks: user.completedTasks.concat(task.id),
+                history,
+              });
+              return capped;
+            };
+
+            const spinWheel = async (value) => {
+              const now = Date.now();
+              if (now - (user.lastSpin || 0) < 30000) {
+                showToast('Please wait before spinning again.', 'error');
+                return 0;
+              }
+              const capped = Math.min(value, COIN_RULES.MAX_COINS_PER_TASK);
+              const history = [{ label: 'Spin Wheel', amount: capped, at: now }].concat(user.history || []).slice(0, 50);
+              await updateUser({ coins: user.coins + capped, lastSpin: now, history });
+              return capped;
+            };
+
+            const scratchCard = async (value) => {
+              const now = Date.now();
+              if (now - (user.lastScratch || 0) < 60000) {
+                showToast('Please wait before scratching again.', 'error');
+                return 0;
+              }
+              const capped = Math.min(value, COIN_RULES.MAX_COINS_PER_TASK);
+              const history = [{ label: 'Scratch Card', amount: capped, at: now }].concat(user.history || []).slice(0, 50);
+              await updateUser({ coins: user.coins + capped, lastScratch: now, history });
+              return capped;
+            };
+
+            const watchAd = async () => {
+              const today = new Date().toDateString();
+              let count = user.adsWatchedToday || 0;
+              if (user.lastAdDate !== today) count = 0;
+              if (count >= COIN_RULES.DAILY_AD_LIMIT) {
+                showToast('Daily ad limit reached (40).', 'error');
+                return 0;
+              }
+              const history = [{ label: 'Watched Ad', amount: COIN_RULES.AD_REWARD, at: Date.now() }].concat(user.history || []).slice(0, 50);
+              await updateUser({
+                coins: user.coins + COIN_RULES.AD_REWARD,
+                adsWatchedToday: count + 1,
+                lastAdDate: today,
+                history,
+              });
+              return COIN_RULES.AD_REWARD;
+            };
+
+            const verifySecurityCode = async (code) => {
+              if (code && code.toUpperCase() === user.securityCode) {
+                await updateUser({ securityVerified: true });
+                return true;
+              }
+              return false;
+            };
+
+            const regenerateSecurityCode = async () => {
+              const code = generateSecurityCode();
+              await updateUser({ securityCode: code, securityVerified: false });
+              return code;
+            };
+
+            const requestWithdraw = async (method, amountPkr, account) => {
+              if (!user.securityVerified) {
+                showToast('Verify your security code first.', 'error');
+                return false;
+              }
+              if (amountPkr < COIN_RULES.MIN_WITHDRAW_PKR) {
+                showToast('Minimum withdrawal is ' + COIN_RULES.MIN_WITHDRAW_PKR + ' PKR.', 'error');
+                return false;
+              }
+              const cost = amountPkr * COIN_RULES.COINS_PER_PKR;
+              if (cost > user.coins) {
+                showToast('Not enough coins.', 'error');
+                return false;
+              }
+              const history = [{ label: 'Withdraw ' + method + ' (' + amountPkr + ' PKR)', amount: -cost, at: Date.now() }].concat(user.history || []).slice(0, 50);
+              await updateUser({ coins: user.coins - cost, history });
+              return true;
+            };
+
+            const value = {
+              user, loading, toast, showToast,
+              signup, login, logout, updateUser, addCoins,
+              completeTask, spinWheel, scratchCard, watchAd,
+              verifySecurityCode, regenerateSecurityCode, requestWithdraw,
+            };
+
+            return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+          }
+          ASEOF
+
+          cat > src/components/UI.js << 'ASEOF'
+          import React, { useEffect, useRef } from 'react';
+          import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+          import { LinearGradient } from 'expo-linear-gradient';
+          import { COLORS } from '../theme/theme';
+          import { useApp } from '../context/AppContext';
+
+          export function GradientButton({ title, onPress, colors, style, disabled }) {
+            return (
+              <TouchableOpacity onPress={onPress} disabled={disabled} activeOpacity={0.85} style={style}>
+                <LinearGradient
+                  colors={colors || [COLORS.primary, COLORS.primaryDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.btn, disabled && { opacity: 0.5 }]}
+                >
+                  <Text style={styles.btnText}>{title}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          }
+
+          export function Card({ children, style }) {
+            return <View style={[styles.card, style]}>{children}</View>;
+          }
+
+          export function CoinBadge({ coins }) {
+            return (
+              <View style={styles.coinBadge}>
+                <Text style={styles.coinIcon}>🪙</Text>
+                <Text style={styles.coinText}>{coins}</Text>
+              </View>
+            );
+          }
+
+          export function SectionTitle({ children }) {
+            return <Text style={styles.sectionTitle}>{children}</Text>;
+          }
+
+          export function ToastHost() {
+            const { toast } = useApp();
+            const opacity = useRef(new Animated.Value(0)).current;
+            useEffect(() => {
+              if (toast) {
+                Animated.sequence([
+                  Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+                  Animated.delay(1800),
+                  Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+                ]).start();
+              }
+            }, [toast]);
+            if (!toast) return null;
+            const bg = toast.type === 'error' ? COLORS.danger : toast.type === 'success' ? COLORS.accent : COLORS.primary;
+            return (
+              <Animated.View style={[styles.toast, { opacity, backgroundColor: bg }]}>
+                <Text style={styles.toastText}>{toast.message}</Text>
+              </Animated.View>
+            );
+          }
+
+          const styles = StyleSheet.create({
+            btn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+            btnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
